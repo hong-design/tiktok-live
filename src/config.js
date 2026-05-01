@@ -33,6 +33,10 @@ export async function loadConfig() {
     path.resolve(process.cwd(), "config/songAliases.json"),
     {}
   );
+  const songCatalog = await readJsonFile(
+    path.resolve(process.cwd(), "config/songCatalog.json"),
+    []
+  );
 
   return {
     targetUsername,
@@ -49,10 +53,16 @@ export async function loadConfig() {
     enableCsvExport: readBoolean("ENABLE_CSV_EXPORT", true),
     minShortSongLength: readPositiveNumber("MIN_SHORT_SONG_LENGTH", 2),
     maxShortSongLength: readPositiveNumber("MAX_SHORT_SONG_LENGTH", 8),
+    minExplicitSongLength: readPositiveNumber("MIN_EXPLICIT_SONG_LENGTH", 2),
+    maxExplicitSongLength: readPositiveNumber("MAX_EXPLICIT_SONG_LENGTH", 30),
     maxExamplesPerSong: readPositiveNumber("MAX_EXAMPLES_PER_SONG", 5),
+    requireCatalogForShortCandidates: readBoolean("REQUIRE_CATALOG_FOR_SHORT_CANDIDATES", true),
+    countUnknownExplicitRequests: readBoolean("COUNT_UNKNOWN_EXPLICIT_REQUESTS", true),
+    saveUncertainCandidates: readBoolean("SAVE_UNCERTAIN_CANDIDATES", true),
     requestWords: Array.isArray(requestWords) ? requestWords : DEFAULT_REQUEST_WORDS,
     blacklistWords: Array.isArray(blacklistWords) ? blacklistWords : DEFAULT_BLACKLIST_WORDS,
-    songAliases: isPlainObject(songAliases) ? songAliases : {}
+    songAliases: isPlainObject(songAliases) ? songAliases : {},
+    songCatalog: Array.isArray(songCatalog) ? songCatalog : []
   };
 }
 

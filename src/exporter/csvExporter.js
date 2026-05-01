@@ -45,6 +45,9 @@ export async function exportMessagesCsv(options) {
       "isSongRequest",
       "detectedSong",
       "normalizedSong",
+      "candidateSong",
+      "normalizedCandidate",
+      "isKnownSong",
       "confidence",
       "reason"
     ])}\n`
@@ -81,6 +84,9 @@ export async function exportMessagesCsv(options) {
           message.isSongRequest,
           message.detectedSong,
           message.normalizedSong,
+          message.candidateSong,
+          message.normalizedCandidate,
+          message.isKnownSong,
           message.confidence,
           message.reason
         ])}\n`

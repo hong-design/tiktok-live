@@ -1,0 +1,91 @@
+{
+  "description": "Public chart pages used to collect song-title candidates.",
+  "targetCount": 2000,
+  "sources": [
+    {
+      "name": "Kworb TikTok Taiwan",
+      "url": "https://kworb.net/charts/tiktok/tw.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb TikTok Hong Kong",
+      "url": "https://kworb.net/charts/tiktok/hk.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb TikTok Singapore",
+      "url": "https://kworb.net/charts/tiktok/sg.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb TikTok Malaysia",
+      "url": "https://kworb.net/charts/tiktok/my.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb YouTube Taiwan Daily",
+      "url": "https://kworb.net/youtube/insights/tw_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb YouTube Hong Kong Daily",
+      "url": "https://kworb.net/youtube/insights/hk_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb YouTube Singapore Daily",
+      "url": "https://kworb.net/youtube/insights/sg_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb YouTube Malaysia Daily",
+      "url": "https://kworb.net/youtube/insights/my_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb Spotify Taiwan Daily",
+      "url": "https://kworb.net/spotify/country/tw_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb Spotify Hong Kong Daily",
+      "url": "https://kworb.net/spotify/country/hk_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb Spotify Singapore Daily",
+      "url": "https://kworb.net/spotify/country/sg_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb Spotify Malaysia Daily",
+      "url": "https://kworb.net/spotify/country/my_daily.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb iTunes Taiwan",
+      "url": "https://kworb.net/charts/itunes/tw.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb iTunes Hong Kong",
+      "url": "https://kworb.net/charts/itunes/hk.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb iTunes Singapore",
+      "url": "https://kworb.net/charts/itunes/sg.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Kworb iTunes Malaysia",
+      "url": "https://kworb.net/charts/itunes/my.html",
+      "type": "artist-title"
+    },
+    {
+      "name": "Spotify embed - Kkbox 2026 華語排行榜",
+      "url": "https://open.spotify.com/embed/playlist/3uqEhPexy899MCfesjy1Iu?utm_source=generator",
+      "type": "spotify-embed"
+    }
+  ]
+}

@@ -40,6 +40,7 @@ async function main() {
     connected: false,
     receivedMessages: 0,
     detectedRequests: 0,
+    uncertainCandidates: 0,
     lastStatusAt: 0
   };
 
@@ -50,12 +51,19 @@ async function main() {
     try {
       const timestamp = nowIso();
       const parsed = parseSongRequest(message.comment);
-      const messageType = parsed.isSongRequest ? "song_request" : "chat";
+      const messageType = parsed.isSongRequest
+        ? "song_request"
+        : parsed.candidateSong
+          ? "uncertain_candidate"
+          : "chat";
 
       runtime.receivedMessages += 1;
       if (parsed.isSongRequest) {
         runtime.detectedRequests += 1;
         songStore.increment(parsed, message.comment, timestamp);
+      }
+      if (messageType === "uncertain_candidate") {
+        runtime.uncertainCandidates += 1;
       }
 
       if (shouldSaveMessageRecord(parsed, config)) {
@@ -69,7 +77,10 @@ async function main() {
           detectedSong: parsed.song,
           normalizedSong: parsed.normalizedSong,
           confidence: parsed.confidence,
-          reason: parsed.reason
+          reason: parsed.reason,
+          candidateSong: parsed.candidateSong,
+          normalizedCandidate: parsed.normalizedCandidate,
+          isKnownSong: parsed.isKnownSong
         });
       }
 
@@ -174,7 +185,11 @@ function shouldSaveMessageRecord(parsed, config) {
     return false;
   }
 
-  return parsed.isSongRequest || config.enableChatMessageLog;
+  return (
+    parsed.isSongRequest ||
+    (config.saveUncertainCandidates && parsed.candidateSong) ||
+    config.enableChatMessageLog
+  );
 }
 
 function printMessageClassification(message, parsed, messageType, config) {
@@ -187,6 +202,13 @@ function printMessageClassification(message, parsed, messageType, config) {
   if (messageType === "song_request") {
     console.log(
       `[點歌][${parsed.confidence}] ${user}: ${message.comment} => ${parsed.normalizedSong}`
+    );
+    return;
+  }
+
+  if (messageType === "uncertain_candidate") {
+    console.log(
+      `[候選][未計入] ${user}: ${message.comment} => ${parsed.normalizedCandidate} (${parsed.reason})`
     );
     return;
   }
@@ -212,6 +234,7 @@ function printStatus(runtime, songStore, config, force = false) {
       `連線=${runtime.connected ? "成功" : "未連線"}`,
       `收到留言=${runtime.receivedMessages}`,
       `偵測點歌=${runtime.detectedRequests}`,
+      `候選未計入=${runtime.uncertainCandidates}`,
       `Top5=${topSongs || "尚無"}`
     ].join(" ")
   );

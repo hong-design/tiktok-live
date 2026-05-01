@@ -10,3 +10,5 @@ exports/*
 
 logs/*
 !logs/.gitkeep
+
+config/*.backup-*.json
