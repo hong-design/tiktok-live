@@ -1,0 +1,12 @@
+node_modules/
+.npm-cache/
+.env
+
+data/*
+!data/.gitkeep
+
+exports/*
+!exports/.gitkeep
+
+logs/*
+!logs/.gitkeep

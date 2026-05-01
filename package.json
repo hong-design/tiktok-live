@@ -1,0 +1,20 @@
+{
+  "name": "tiktok-live-song-request-stats",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "TikTok LIVE public chat song request statistics collector.",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "tiktok-live-connector": "^2.1.1-beta1"
+  },
+  "overrides": {
+    "protobufjs": "^7.5.5"
+  }
+}
