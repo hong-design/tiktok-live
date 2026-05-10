@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎵 點歌排行</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --accent: #fe2c55;
+      --accent2: #25f4ee;
+      --text: #f1f1f1;
+      --muted: #888;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+      --green: #22c55e;
+      --orange: #f97316;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo { font-size: 28px; }
+    .title-group h1 { font-size: 18px; font-weight: 700; color: var(--accent); }
+    .title-group .subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+    .status-bar { display: flex; align-items: center; gap: 16px; font-size: 13px; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; margin-right: 6px; }
+    .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    .refresh-btn {
+      background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+      padding: 6px 14px; border-radius: 20px; cursor: pointer; font-size: 12px; transition: all 0.2s;
+    }
+    .refresh-btn:hover { background: var(--accent); border-color: var(--accent); }
+    .auto-label { font-size: 12px; color: var(--muted); }
+
+    main {
+      max-width: 1400px; margin: 0 auto; padding: 24px;
+      display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    }
+    @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+    .full-width { grid-column: 1 / -1; }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--surface2);
+    }
+    .panel-header h2 { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+    .count-badge {
+      background: var(--surface); border: 1px solid var(--border);
+      color: var(--muted); font-size: 11px; padding: 2px 8px; border-radius: 10px;
+    }
+
+    .song-list { padding: 8px 0; }
+    .song-row {
+      display: flex; align-items: center; gap: 12px; padding: 10px 20px;
+      transition: background 0.15s; border-bottom: 1px solid #1e1e1e;
+    }
+    .song-row:last-child { border-bottom: none; }
+    .song-row:hover { background: var(--surface2); }
+
+    .rank { font-size: 13px; font-weight: 700; width: 28px; text-align: center; flex-shrink: 0; color: var(--muted); }
+    .rank.gold { color: var(--gold); }
+    .rank.silver { color: var(--silver); }
+    .rank.bronze { color: var(--bronze); }
+
+    .song-info { flex: 1; min-width: 0; }
+    .song-name { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .song-meta { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .count-pill {
+      background: var(--accent); color: white; font-size: 12px; font-weight: 700;
+      padding: 3px 10px; border-radius: 12px; flex-shrink: 0; min-width: 32px; text-align: center;
+    }
+    .count-pill.low { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+
+    .bar-wrap { width: 60px; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+    .bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width 0.4s ease; }
+
+    .empty-state { padding: 48px 20px; text-align: center; color: var(--muted); }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+    .empty-state p { font-size: 14px; }
+
+    .stats-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    @media (max-width: 700px) { .stats-bar { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px; text-align: center; }
+    .stat-value { font-size: 26px; font-weight: 800; color: var(--accent2); line-height: 1; }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+    .last-updated { text-align: center; font-size: 11px; color: var(--muted); padding: 12px; }
+
+    /* Candidate panel */
+    .candidate-row {
+      display: flex; align-items: center; gap: 10px; padding: 10px 20px;
+      border-bottom: 1px solid #1e1e1e; transition: background 0.15s;
+    }
+    .candidate-row:last-child { border-bottom: none; }
+    .candidate-row:hover { background: var(--surface2); }
+
+    .candidate-info { flex: 1; min-width: 0; }
+    .candidate-comment {
+      font-size: 13px; color: var(--muted);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .candidate-song {
+      font-size: 14px; font-weight: 600; color: var(--orange);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      margin-bottom: 2px;
+    }
+    .candidate-time { font-size: 11px; color: #555; margin-top: 2px; }
+
+    .btn-accept, .btn-reject {
+      border: none; border-radius: 8px; cursor: pointer;
+      font-size: 12px; font-weight: 600; padding: 5px 12px;
+      flex-shrink: 0; transition: all 0.15s;
+    }
+    .btn-accept { background: var(--green); color: #000; }
+    .btn-accept:hover { opacity: 0.85; }
+    .btn-reject { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
+    .btn-reject:hover { background: #3a1515; color: var(--accent); border-color: var(--accent); }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 999;
+      background: var(--green); color: #000; font-weight: 600; font-size: 14px;
+      padding: 12px 20px; border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      animation: slideIn 0.25s ease; pointer-events: none;
+    }
+    .toast.error { background: var(--accent); color: white; }
+    @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-left">
+      <span class="logo">🎵</span>
+      <div class="title-group">
+        <h1>點歌排行榜</h1>
+        <div class="subtitle" id="streamUser">載入中...</div>
+      </div>
+    </div>
+    <div class="status-bar">
+      <span id="statusIndicator"><span class="status-dot"></span>--</span>
+      <span class="auto-label">自動更新 5s</span>
+      <button class="refresh-btn" onclick="loadAll()">⟳ 重新整理</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="full-width">
+      <div class="stats-bar">
+        <div class="stat-card">
+          <div class="stat-value" id="statTotal">--</div>
+          <div class="stat-label">不同歌曲 (種)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statRequests">--</div>
+          <div class="stat-label">總點歌次數</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTop">--</div>
+          <div class="stat-label">最高票歌曲</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statCandidates" style="color:var(--orange)">--</div>
+          <div class="stat-label">待審核候選</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>🏆 最多人點</h2>
+        <span class="count-badge" id="topCount">0 首</span>
+      </div>
+      <div class="song-list" id="topList">
+        <div class="empty-state"><div class="icon">🎵</div><p>等待點歌資料...</p></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <h2>📋 全場有人點（依時間）</h2>
+        <span class="count-badge" id="allCount">0 首</span>
+      </div>
+      <div class="song-list" id="allList">
+        <div class="empty-state"><div class="icon">🎵</div><p>等待點歌資料...</p></div>
+      </div>
+    </div>
+
+    <div class="panel full-width">
+      <div class="panel-header">
+        <h2>🔍 候選審核 <span style="font-weight:400;color:var(--muted);font-size:12px">（系統不確定的留言，可手動確認是否為點歌）</span></h2>
+        <span class="count-badge" id="candidateCount">0 筆</span>
+      </div>
+      <div id="candidateList">
+        <div class="empty-state"><div class="icon">✨</div><p>目前沒有待審核的候選</p></div>
+      </div>
+    </div>
+  </main>
+
+  <div class="last-updated" id="lastUpdated">--</div>
+
+  <script>
+    let maxCount = 1;
+
+    function rankClass(i) {
+      if (i === 0) return "gold";
+      if (i === 1) return "silver";
+      if (i === 2) return "bronze";
+      return "";
+    }
+    function rankLabel(i) {
+      if (i === 0) return "🥇";
+      if (i === 1) return "🥈";
+      if (i === 2) return "🥉";
+      return i + 1;
+    }
+    function formatTime(iso) {
+      if (!iso) return "";
+      return new Date(iso).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    }
+
+    function renderTopList(songs) {
+      const el = document.getElementById("topList");
+      document.getElementById("topCount").textContent = songs.length + " 首";
+      if (!songs.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">🎵</div><p>還沒有點歌記錄</p></div>';
+        return;
+      }
+      maxCount = Math.max(1, songs[0]?.count ?? 1);
+      el.innerHTML = songs.map((s, i) => `
+        <div class="song-row">
+          <span class="rank ${rankClass(i)}">${rankLabel(i)}</span>
+          <div class="song-info">
+            <div class="song-name" title="${esc(s.song)}">${esc(s.song)}</div>
+            <div class="song-meta">首次點歌 ${formatTime(s.firstSeenAt)}</div>
+          </div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${Math.round(s.count / maxCount * 100)}%"></div></div>
+          <span class="count-pill">${s.count}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderAllList(songs) {
+      const el = document.getElementById("allList");
+      document.getElementById("allCount").textContent = songs.length + " 首";
+      if (!songs.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">🎵</div><p>還沒有點歌記錄</p></div>';
+        return;
+      }
+      el.innerHTML = songs.map((s, i) => `
+        <div class="song-row">
+          <span class="rank">${i + 1}</span>
+          <div class="song-info">
+            <div class="song-name" title="${esc(s.song)}">${esc(s.song)}</div>
+            <div class="song-meta">${formatTime(s.firstSeenAt)} 首點</div>
+          </div>
+          <span class="count-pill ${s.count <= 1 ? 'low' : ''}">${s.count}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderCandidates(candidates) {
+      const el = document.getElementById("candidateList");
+      document.getElementById("candidateCount").textContent = candidates.length + " 筆";
+      document.getElementById("statCandidates").textContent = candidates.length;
+      if (!candidates.length) {
+        el.innerHTML = '<div class="empty-state"><div class="icon">✨</div><p>目前沒有待審核的候選</p></div>';
+        return;
+      }
+      el.innerHTML = candidates.map((c) => `
+        <div class="candidate-row" id="cand-${c.id}">
+          <div class="candidate-info">
+            <div class="candidate-song">♪ ${esc(c.candidateSong)}</div>
+            <div class="candidate-comment">留言：${esc(c.comment)}</div>
+            <div class="candidate-time">${formatTime(c.timestamp)}${c.nickname ? '  ' + esc(c.nickname) : ''}</div>
+          </div>
+          <button class="btn-accept" onclick="acceptCandidate(${c.id}, '${esc(c.candidateSong)}')">✓ 計入</button>
+          <button class="btn-reject" onclick="rejectCandidate(${c.id})">✕ 忽略</button>
+        </div>
+      `).join("");
+    }
+
+    async function acceptCandidate(id, songName) {
+      try {
+        const res = await fetch("/api/candidates/accept", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id })
+        });
+        if (!res.ok) throw new Error(res.statusText);
+        document.getElementById(`cand-${id}`)?.remove();
+        showToast(`已計入「${songName}」`);
+        loadSongs();
+      } catch (e) {
+        showToast("操作失敗：" + e.message, true);
+      }
+    }
+
+    async function rejectCandidate(id) {
+      try {
+        const res = await fetch("/api/candidates/reject", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id })
+        });
+        if (!res.ok) throw new Error(res.statusText);
+        document.getElementById(`cand-${id}`)?.remove();
+        const remaining = document.querySelectorAll("[id^='cand-']").length;
+        document.getElementById("candidateCount").textContent = remaining + " 筆";
+        document.getElementById("statCandidates").textContent = remaining;
+        if (remaining === 0) {
+          document.getElementById("candidateList").innerHTML =
+            '<div class="empty-state"><div class="icon">✨</div><p>目前沒有待審核的候選</p></div>';
+        }
+      } catch (e) {
+        showToast("操作失敗：" + e.message, true);
+      }
+    }
+
+    async function loadSongs() {
+      const res = await fetch("/api/songs");
+      if (!res.ok) throw new Error(res.statusText);
+      const data = await res.json();
+      const songs = Array.isArray(data.songs) ? data.songs : [];
+
+      document.getElementById("streamUser").textContent = "直播監控中";
+      document.getElementById("statTotal").textContent = songs.length;
+      document.getElementById("statRequests").textContent = data.totalRequests ?? songs.reduce((s, x) => s + (x.count ?? 0), 0);
+
+      const topSong = songs[0];
+      document.getElementById("statTop").textContent = topSong
+        ? `${topSong.song} (${topSong.count})`
+        : "--";
+
+      const byCount = [...songs].sort((a, b) => {
+        const d = (b.count ?? 0) - (a.count ?? 0);
+        return d !== 0 ? d : String(a.firstSeenAt ?? "").localeCompare(String(b.firstSeenAt ?? ""));
+      });
+      const byTime = [...songs].sort((a, b) =>
+        String(a.firstSeenAt ?? "").localeCompare(String(b.firstSeenAt ?? ""))
+      );
+      renderTopList(byCount);
+      renderAllList(byTime);
+    }
+
+    async function loadCandidates() {
+      const res = await fetch("/api/candidates");
+      if (!res.ok) return;
+      const data = await res.json();
+      renderCandidates(Array.isArray(data) ? data : []);
+    }
+
+    async function loadAll() {
+      try {
+        await Promise.all([loadSongs(), loadCandidates()]);
+        const now = new Date().toLocaleTimeString("zh-TW");
+        document.getElementById("lastUpdated").textContent = `最後更新：${now}`;
+        const dot = document.querySelector(".status-dot");
+        dot.className = "status-dot live";
+        document.getElementById("statusIndicator").innerHTML = '<span class="status-dot live"></span>已連線';
+      } catch (e) {
+        document.getElementById("lastUpdated").textContent = `無法讀取資料 (${e.message})`;
+        document.querySelector(".status-dot").className = "status-dot";
+        document.getElementById("statusIndicator").innerHTML = '<span class="status-dot"></span>未連線';
+      }
+    }
+
+    function showToast(msg, isError = false) {
+      const t = document.createElement("div");
+      t.className = "toast" + (isError ? " error" : "");
+      t.textContent = msg;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 2500);
+    }
+
+    function esc(str) {
+      return String(str ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    loadAll();
+    setInterval(loadAll, 5000);
+  </script>
+</body>
+</html>

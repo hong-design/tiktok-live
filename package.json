@@ -9,10 +9,11 @@
   },
   "scripts": {
     "start": "node src/index.js",
-    "test": "node --test"
+    "test": "node tests/parser.test.js"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
+    "googleapis": "^171.4.0",
     "tiktok-live-connector": "^2.1.1-beta1"
   },
   "overrides": {

@@ -1,16 +1,57 @@
+import { exec } from "node:child_process";
 import path from "node:path";
 import { loadConfig } from "./config.js";
 import { createLogger } from "./logger.js";
 import { exportMessagesCsv, exportSongsCsv } from "./exporter/csvExporter.js";
 import { exportSongsJson } from "./exporter/jsonExporter.js";
+import { exportSongSheetCsv } from "./exporter/sheetExporter.js";
+import { exportToGoogleSheets } from "./exporter/googleSheetsExporter.js";
 import { createSongParser } from "./parser/songParser.js";
+import { LiveSessionManager } from "./store/liveSessionManager.js";
 import { MessageStore } from "./store/messageStore.js";
 import { SongStore } from "./store/songStore.js";
+import { CandidateStore } from "./store/candidateStore.js";
+import { createDashboardServer } from "./ui/server.js";
 import { TikTokClient } from "./tiktokClient.js";
 import { ensureDir } from "./utils/file.js";
 import { nowIso } from "./utils/time.js";
 
 let shuttingDown = false;
+
+// 同一用戶同一首歌 60 秒內只計一次
+const DEDUP_WINDOW_MS = 60_000;
+const recentRequestCache = new Map();
+
+setInterval(() => {
+  const cutoff = Date.now() - DEDUP_WINDOW_MS;
+  for (const [key, ts] of recentRequestCache) {
+    if (ts < cutoff) recentRequestCache.delete(key);
+  }
+}, DEDUP_WINDOW_MS).unref?.();
+
+function isDuplicateRequest(uniqueId, normalizedSong) {
+  if (!uniqueId || !normalizedSong) return false;
+  const last = recentRequestCache.get(`${uniqueId}:${normalizedSong}`);
+  return last !== undefined && Date.now() - last < DEDUP_WINDOW_MS;
+}
+
+function markRequest(uniqueId, normalizedSong) {
+  if (uniqueId && normalizedSong) {
+    recentRequestCache.set(`${uniqueId}:${normalizedSong}`, Date.now());
+  }
+}
+
+function openBrowser(url) {
+  const cmd =
+    process.platform === "win32"
+      ? `start "" "${url}"`
+      : process.platform === "darwin"
+        ? `open "${url}"`
+        : `xdg-open "${url}"`;
+  exec(cmd, (err) => {
+    if (err) console.warn("[WARN] 無法自動開啟瀏覽器:", err.message);
+  });
+}
 
 async function main() {
   const config = await loadConfig();
@@ -27,14 +68,32 @@ async function main() {
     maxExamplesPerSong: config.maxExamplesPerSong,
     logger
   });
+  const candidateStore = new CandidateStore();
   const messageStore = new MessageStore({
     filePath: path.join(config.dataDir, "messages.jsonl"),
     enabled: config.enableRawMessageLog,
     logger
   });
+  const fullTranscriptStore = new MessageStore({
+    filePath: path.join(config.dataDir, "live-comments.jsonl"),
+    enabled: config.enableFullTranscriptLog,
+    logger
+  });
+  const liveSessionManager = new LiveSessionManager({ config, logger });
 
-  await songStore.load();
   await messageStore.prepare();
+  await fullTranscriptStore.prepare();
+
+  // Dashboard 整合進主程式（不需要另開終端機）
+  let dashboardServer = null;
+  if (config.enableDashboard) {
+    dashboardServer = await createDashboardServer({
+      port: config.dashboardPort,
+      songStore,
+      candidateStore,
+      logger
+    });
+  }
 
   const runtime = {
     connected: false,
@@ -45,9 +104,12 @@ async function main() {
   };
 
   logger.info(`目前連線帳號: @${config.targetUsername}`);
+  if (dashboardServer) {
+    logger.info(`Dashboard: http://localhost:${config.dashboardPort}`);
+  }
   printStatus(runtime, songStore, config, true);
 
-  async function handleChat(message) {
+  function handleChat(message) {
     try {
       const timestamp = nowIso();
       const parsed = parseSongRequest(message.comment);
@@ -58,31 +120,48 @@ async function main() {
           : "chat";
 
       runtime.receivedMessages += 1;
+
       if (parsed.isSongRequest) {
-        runtime.detectedRequests += 1;
-        songStore.increment(parsed, message.comment, timestamp);
-      }
-      if (messageType === "uncertain_candidate") {
-        runtime.uncertainCandidates += 1;
+        const isDup = isDuplicateRequest(message.uniqueId, parsed.normalizedSong);
+        if (!isDup) {
+          runtime.detectedRequests += 1;
+          songStore.increment(parsed, message.comment, timestamp);
+          markRequest(message.uniqueId, parsed.normalizedSong);
+        }
       }
 
-      if (shouldSaveMessageRecord(parsed, config)) {
-        await messageStore.append({
-          timestamp,
+      if (messageType === "uncertain_candidate" && parsed.candidateSong) {
+        runtime.uncertainCandidates += 1;
+        candidateStore.add({
+          comment: message.comment,
           uniqueId: message.uniqueId,
           nickname: message.nickname,
-          comment: message.comment,
-          messageType,
-          isSongRequest: parsed.isSongRequest,
-          detectedSong: parsed.song,
-          normalizedSong: parsed.normalizedSong,
-          confidence: parsed.confidence,
-          reason: parsed.reason,
           candidateSong: parsed.candidateSong,
           normalizedCandidate: parsed.normalizedCandidate,
-          isKnownSong: parsed.isKnownSong
+          timestamp
         });
       }
+
+      const record = {
+        timestamp,
+        uniqueId: message.uniqueId,
+        nickname: message.nickname,
+        comment: message.comment,
+        messageType,
+        isSongRequest: parsed.isSongRequest,
+        detectedSong: parsed.song,
+        normalizedSong: parsed.normalizedSong,
+        confidence: parsed.confidence,
+        reason: parsed.reason,
+        candidateSong: parsed.candidateSong,
+        normalizedCandidate: parsed.normalizedCandidate,
+        isKnownSong: parsed.isKnownSong
+      };
+      const saveAnalysisRecord = shouldSaveMessageRecord(parsed, config);
+
+      if (saveAnalysisRecord) messageStore.append(record);
+      fullTranscriptStore.append(record);
+      liveSessionManager.appendMessage(record, saveAnalysisRecord);
 
       printMessageClassification(message, parsed, messageType, config);
       printStatus(runtime, songStore, config);
@@ -94,17 +173,26 @@ async function main() {
   const client = new TikTokClient({
     username: config.targetUsername,
     reconnectDelayMs: config.reconnectDelayMs,
+    waitForLive: config.waitForLive,
+    livePollIntervalMs: config.livePollIntervalMs,
     logger,
     onChat: handleChat,
     onStatus(status) {
       runtime.connected = Boolean(status.connected);
+      if (runtime.connected) {
+        liveSessionManager
+          .startSession(status.state)
+          .catch((error) => logger.error("建立直播場次紀錄失敗", error));
+      }
       printStatus(runtime, songStore, config, true);
     }
   });
 
   async function saveAll() {
     await messageStore.flush();
+    await fullTranscriptStore.flush();
     await songStore.save();
+    await liveSessionManager.saveCurrentSession();
   }
 
   async function exportAll() {
@@ -135,7 +223,38 @@ async function main() {
           logger
         })
       );
+      if (config.enableFullTranscriptLog) {
+        exportedFiles.push(
+          await exportMessagesCsv({
+            messageFile: path.join(config.dataDir, "live-comments.jsonl"),
+            outputFile: path.join(config.exportDir, "live-comments.csv"),
+            logger
+          })
+        );
+      }
     }
+
+    if (config.enableSheetExport) {
+      exportedFiles.push(
+        await exportSongSheetCsv({
+          songs,
+          outputFile: path.join(config.exportDir, "song-sheet.csv"),
+          topLimit: config.sheetTopLimit
+        })
+      );
+    }
+
+    if (config.enableGoogleSheets) {
+      await exportToGoogleSheets({
+        songs,
+        credentialsPath: config.googleCredentialsPath,
+        sheetId: config.googleSheetId,
+        topLimit: config.sheetTopLimit,
+        logger
+      });
+    }
+
+    exportedFiles.push(...(await liveSessionManager.exportCurrentSession()));
 
     if (exportedFiles.length > 0) {
       logger.info("已匯出報表", {
@@ -153,11 +272,9 @@ async function main() {
   }, config.exportIntervalMs);
 
   async function shutdown(signal) {
-    if (shuttingDown) {
-      return;
-    }
-
+    if (shuttingDown) return;
     shuttingDown = true;
+
     logger.info(`收到 ${signal}，開始安全保存與最後匯出`);
     clearInterval(saveTimer);
     clearInterval(exportTimer);
@@ -165,6 +282,19 @@ async function main() {
     await saveAll();
     await exportAll();
     logger.info("已完成安全關閉");
+
+    if (dashboardServer && config.openBrowserOnExit) {
+      const url = `http://localhost:${config.dashboardPort}`;
+      logger.info(`開啟瀏覽器查看結果: ${url}`);
+      openBrowser(url);
+      // 給瀏覽器一點時間連線後再關閉 server
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+    }
+
+    if (dashboardServer) {
+      await new Promise((resolve) => dashboardServer.close(resolve));
+    }
+
     process.exit(0);
   }
 
@@ -181,10 +311,7 @@ async function main() {
 }
 
 function shouldSaveMessageRecord(parsed, config) {
-  if (!config.enableRawMessageLog) {
-    return false;
-  }
-
+  if (!config.enableRawMessageLog) return false;
   return (
     parsed.isSongRequest ||
     (config.saveUncertainCandidates && parsed.candidateSong) ||
@@ -193,41 +320,27 @@ function shouldSaveMessageRecord(parsed, config) {
 }
 
 function printMessageClassification(message, parsed, messageType, config) {
-  if (!config.enableMessageClassificationLog) {
-    return;
-  }
-
+  if (!config.enableMessageClassificationLog) return;
   const user = message.uniqueId ? `@${message.uniqueId}` : "unknown";
-
   if (messageType === "song_request") {
-    console.log(
-      `[點歌][${parsed.confidence}] ${user}: ${message.comment} => ${parsed.normalizedSong}`
-    );
+    console.log(`[點歌][${parsed.confidence}] ${user}: ${message.comment} => ${parsed.normalizedSong}`);
     return;
   }
-
   if (messageType === "uncertain_candidate") {
-    console.log(
-      `[候選][未計入] ${user}: ${message.comment} => ${parsed.normalizedCandidate} (${parsed.reason})`
-    );
+    console.log(`[候選][未計入] ${user}: ${message.comment} => ${parsed.normalizedCandidate} (${parsed.reason})`);
     return;
   }
-
   console.log(`[聊天] ${user}: ${message.comment} (${parsed.reason})`);
 }
 
 function printStatus(runtime, songStore, config, force = false) {
   const now = Date.now();
-  if (!force && now - runtime.lastStatusAt < 5000) {
-    return;
-  }
-
+  if (!force && now - runtime.lastStatusAt < 5000) return;
   runtime.lastStatusAt = now;
   const topSongs = songStore
     .getTopSongs(5)
     .map((song, index) => `${index + 1}.${song.song}(${song.count})`)
     .join(" | ");
-
   console.log(
     [
       `[狀態] @${config.targetUsername}`,

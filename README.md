@@ -45,6 +45,9 @@ TIKTOK_USERNAME=target_username
 EXPORT_INTERVAL_SECONDS=60
 SAVE_INTERVAL_SECONDS=30
 RECONNECT_DELAY_SECONDS=10
+WAIT_FOR_LIVE=true
+LIVE_POLL_INTERVAL_SECONDS=30
+RETAIN_LIVE_SESSIONS=5
 
 DATA_DIR=./data
 EXPORT_DIR=./exports
@@ -53,8 +56,11 @@ LOG_DIR=./logs
 ENABLE_RAW_MESSAGE_LOG=true
 ENABLE_MESSAGE_CLASSIFICATION_LOG=true
 ENABLE_CHAT_MESSAGE_LOG=false
+ENABLE_FULL_TRANSCRIPT_LOG=true
 ENABLE_JSON_EXPORT=true
 ENABLE_CSV_EXPORT=true
+ENABLE_SHEET_EXPORT=true
+SHEET_TOP_LIMIT=30
 
 MIN_SHORT_SONG_LENGTH=2
 MAX_SHORT_SONG_LENGTH=8
@@ -83,7 +89,33 @@ npm.cmd start
 
 執行後終端會顯示目前連線帳號、連線狀態、收到留言數、偵測到的點歌數、候選未計入數、目前 Top 5 歌曲與匯出檔案位置。若 `ENABLE_MESSAGE_CLASSIFICATION_LOG=true`，每筆留言也會即時顯示為 `[點歌]`、`[候選][未計入]` 或 `[聊天]`。
 
-若目前未開直播，程式會顯示「目前未偵測到直播」，並依 `RECONNECT_DELAY_SECONDS` 自動重試。
+若目前未開直播，程式會顯示「目前未偵測到直播」，並在 `WAIT_FOR_LIVE=true` 時依 `LIVE_POLL_INTERVAL_SECONDS` 自動輪詢；對方一開公開 LIVE，系統會自動連上。直播結束後也會回到等待下一場直播的狀態。
+
+## 完整直播留言紀錄
+
+若 `ENABLE_FULL_TRANSCRIPT_LOG=true`，系統會從程式成功連線後開始，完整保存每一則收到的公開聊天室留言：
+
+- `data/live-comments.jsonl`
+- `exports/live-comments.csv`
+
+此檔案不會只保存點歌，也不會因為解析結果刪減留言內容。`comment` 欄位會保留 connector 收到的原始留言字串；程式只會略過完全空白的留言。
+
+限制：此工具只能保存「程式啟動並成功連線後」收到的公開 LIVE 留言，無法補抓啟動前的歷史留言。
+
+## 保留多場直播
+
+`RETAIN_LIVE_SESSIONS=5` 代表至少保留最近 5 場成功連線的直播場次。每次連線取得新的 TikTok LIVE `roomId` 時，系統會建立獨立場次資料夾：
+
+- `data/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/live-comments.jsonl`
+- `data/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/messages.jsonl`
+- `data/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/songs.json`
+- `data/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/session.json`
+- `exports/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/live-comments.csv`
+- `exports/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/messages.csv`
+- `exports/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/songs.csv`
+- `exports/sessions/<YYYY-MM-DD_HHMMSS_username_roomId>/songs.json`
+
+資料夾名稱會包含日期、時間、帳號與 roomId。匯出資料夾內也會額外產生帶同樣標籤的檔案，例如 `<label>_live-comments.csv`，方便人工整理。超過保留數量時，會清理最舊的場次資料夾。根目錄的 `data/live-comments.jsonl`、`data/messages.jsonl`、`data/songs.json` 仍會保留作為目前累積紀錄。
 
 ## 降低錯誤率策略
 
@@ -148,19 +180,26 @@ messageType = uncertain_candidate
 資料保存：
 
 - `data/messages.jsonl`：每行一筆已保存留言與解析結果，包含 `messageType`。
+- `data/live-comments.jsonl`：完整公開聊天室留言紀錄，需 `ENABLE_FULL_TRANSCRIPT_LOG=true`。
 - `data/songs.json`：歌曲統計資料，依點歌次數排序。
+- `data/sessions/`：分場直播資料，依 `RETAIN_LIVE_SESSIONS` 保留最近 N 場。
 
 報表匯出：
 
 - `exports/songs.csv`
 - `exports/songs.json`
 - `exports/messages.csv`
+- `exports/live-comments.csv`
+- `exports/song-sheet.csv`：Google Sheets / Excel 相容歌單，左側為「整場直播有人點」，右側為「最多人點 / 點歌次數」。
+- `exports/sessions/`
 
 錯誤日誌：
 
 - `logs/error.log`
 
 CSV 會處理逗號、換行與雙引號 escaping，避免留言內容破壞欄位格式。
+
+每場直播的資料夾也會輸出 `song-sheet.csv` 與 `<label>_song-sheet.csv`。`SHEET_TOP_LIMIT` 可控制右側「最多人點」最多列出幾首，預設 30。若沒有任何歌曲被點超過 1 次，右側會改列目前點歌排行，避免報表空白。
 
 `exports/messages.csv` 可用 `messageType` 或 `isSongRequest` 篩選：
 

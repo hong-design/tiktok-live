@@ -1,17 +1,38 @@
 export const DEFAULT_REQUEST_WORDS = [
   "可不可以唱",
+  "可不可以播",
   "可以唱",
+  "可以播",
   "能不能唱",
+  "能不能播",
   "幫我唱",
   "幫我播",
+  "幫我放",
+  "我要點",
   "我要聽",
+  "我想聽",
+  "我想點",
+  "想要聽",
   "想聽",
-  "可以播",
   "來一首",
   "點歌",
+  "點播",
   "能唱",
+  "能播",
+  "求唱",
+  "求播",
+  "求一首",
+  "放一首",
+  "唱一首",
+  "播一首",
+  "請唱",
+  "請播",
+  "老師唱",
+  "老師播",
+  "主播唱",
+  "主播播",
+  "來一個",
   "唱",
-  "聽",
   "播"
 ];
 
@@ -49,13 +70,23 @@ export const CLEANING_WORDS = [
   "聽",
   "播",
   "來一首",
+  "我要點",
+  "我想聽",
+  "想要聽",
   "想聽",
   "我要聽",
   "點歌",
   "一下",
   "一首",
   "這首",
-  "那首"
+  "那首",
+  "老師",
+  "主播",
+  "來一個",
+  "唱一首",
+  "播一首",
+  "求",
+  "個"
 ];
 
 export const TRAILING_PARTICLES = [
@@ -66,7 +97,10 @@ export const TRAILING_PARTICLES = [
   "耶",
   "吧",
   "喔",
-  "哦"
+  "哦",
+  "呢",
+  "呀",
+  "噢"
 ];
 
 export const BEFORE_CANDIDATE_REQUEST_WORDS = [
@@ -77,7 +111,32 @@ export const BEFORE_CANDIDATE_REQUEST_WORDS = [
   "可以播"
 ];
 
-export const SINGLE_ACTION_REQUEST_WORDS = ["唱", "聽", "播"];
+export const SINGLE_ACTION_REQUEST_WORDS = ["唱", "播"];
+
+export const VERSION_QUALIFIER_WORDS = [
+  "live版",
+  "現場版",
+  "鋼琴版",
+  "吉他版",
+  "古箏版",
+  "純音樂",
+  "伴奏版",
+  "伴奏",
+  "翻唱版",
+  "翻唱",
+  "原版",
+  "男版",
+  "女版",
+  "完整版",
+  "cover",
+  "remix",
+  "acoustic",
+  "piano",
+  "live",
+  "ver",
+  "version",
+  "instrumental"
+];
 
 export const REQUEST_PREFIX_FILLERS = [
   "拜託",
@@ -87,5 +146,7 @@ export const REQUEST_PREFIX_FILLERS = [
   "可不可以",
   "能不能",
   "能",
-  "幫我"
+  "幫我",
+  "老師",
+  "主播"
 ];

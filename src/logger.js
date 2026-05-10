@@ -55,5 +55,9 @@ function formatMeta(meta) {
   if (!meta || Object.keys(meta).length === 0) {
     return "";
   }
-  return JSON.stringify(meta);
+  try {
+    return JSON.stringify(meta);
+  } catch {
+    return "[unstringifiable meta]";
+  }
 }
